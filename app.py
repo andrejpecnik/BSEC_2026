@@ -7,8 +7,10 @@ import os
 from math import radians, cos, sin, asin, sqrt
 from flask import Flask, render_template, request, jsonify
 
-app = Flask(__name__, template_folder=os.path.dirname(__file__))
-DB_PATH = os.path.join(os.path.dirname(__file__), 'zdravdash_vsetko_asi.db')
+app = Flask(__name__,
+            template_folder=os.path.join(os.path.dirname(__file__), 'templates'),
+            static_folder=os.path.join(os.path.dirname(__file__), 'static'))
+DB_PATH = os.path.join(os.path.dirname(__file__), 'MedicApp.db')
 
 
 def get_db():

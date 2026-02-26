@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MedicApp — Jihomoravský kraj</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">⚕</div>
+    MedicApp <span>Jihomoravský kraj</span>
+  </div>
+  <div class="search-wrap">
+    <svg class="search-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input type="text" id="searchInput" placeholder='Hľadaj obor, oddelenie, názov, obec… napr. "kardiológia"' autocomplete="off">
+    <div class="suggestions" id="suggestions"></div>
+  </div>
+  <div class="location-wrap">
+    <div class="address-box">
+      <svg class="address-pin" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      <input type="text" id="addressInput" placeholder="Adresa alebo obec…" autocomplete="off">
+      <button id="addressClear" class="address-clear" title="Zrušiť filter" style="display:none">✕</button>
+      <div class="address-status" id="addressStatus"></div>
+    </div>
+    <button id="gpsBtn" class="gps-btn" title="Použiť moju polohu">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+    </button>
+  </div>
+  <div class="stats-bar">
+    <div class="stat">Výsledky: <b id="countResults">—</b></div>
+  </div>
+</div>
+
+<div class="filter-bar" id="filterBar">
+  <div class="filter-group">
+    <span class="filter-label">Prístupnosť:</span>
+    <button class="filter-btn" data-filter="pristup" data-value="přístupné" onclick="toggleFilter(this)">♿ Přístupné</button>
+    <button class="filter-btn" data-filter="pristup" data-value="přístupné s asistencí" onclick="toggleFilter(this)">🤝 S asistencí</button>
+  </div>
+  <div class="filter-sep"></div>
+  <div class="filter-group">
+    <span class="filter-label">Poisťovňa:</span>
+    <button class="filter-btn" data-filter="poistovna" data-value="VZP" onclick="toggleFilter(this)">VZP</button>
+    <button class="filter-btn" data-filter="poistovna" data-value="CPZP" onclick="toggleFilter(this)">CPZP</button>
+    <button class="filter-btn" data-filter="poistovna" data-value="VOZP" onclick="toggleFilter(this)">VOZP</button>
+  </div>
+  <div class="filter-sep"></div>
+  <div class="filter-group">
+    <span class="filter-label">WC:</span>
+    <button class="filter-btn" data-filter="wc" data-value="1" onclick="toggleFilter(this)">🚻 Áno</button>
+  </div>
+  <button class="filter-clear" id="filterClear" onclick="clearAllFilters()">✕ Zrušiť filtre</button>
+</div>
+
+<div class="main" id="mainLayout">
+  <div class="table-panel" id="tablePanel">
+    <table>
+      <thead>
+        <tr>
+          <th>Názov</th>
+          <th class="col-tags">Obor / Oddelenie</th>
+          <th class="col-tags">Poisťovne</th>
+          <th>Adresa</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="3"><div class="loading"><div class="spinner"></div>Načítavam…</div></td></tr>
+      </tbody>
+    </table>
+    <div class="pagination" id="pagination"></div>
+  </div>
+  <div class="detail-panel" id="detailPanel"></div>
+</div>
+
+<!-- AI Chat FAB -->
+<button class="chat-fab" id="chatFab" onclick="toggleChat()" title="AI Asistent">
+  <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+</button>
+
+<!-- AI Chat Panel -->
+<div class="chat-panel" id="chatPanel">
+  <div class="chat-header">
+    <div class="chat-header-icon">🤖</div>
+    <div class="chat-header-text">
+      <div class="title">AI Asistent</div>
+      <div class="subtitle">Opýtaj sa ma ľudskou rečou</div>
+    </div>
+    <button class="chat-close" onclick="toggleChat()">✕</button>
+  </div>
+  <div class="chat-messages" id="chatMessages">
+    <div class="chat-welcome">
+      <div style="font-size:28px;margin-bottom:8px">🤖</div>
+      <div>Ahoj! Som AI asistent MedicApp.<br>Povedz mi, čo hľadáš — ľudskou rečou.</div>
+      <div class="examples">
+        <button class="chat-example" onclick="sendExample(this)">🦷 Hľadám zubára v Brne čo berie VZP</button>
+        <button class="chat-example" onclick="sendExample(this)">❤️ Kardiológia s bezbariérovým prístupom</button>
+        <button class="chat-example" onclick="sendExample(this)">👶 Detský lekár v Blansku</button>
+        <button class="chat-example" onclick="sendExample(this)">👁️ Očný lekár s WC pre pacientov</button>
+      </div>
+    </div>
+  </div>
+  <div class="chat-input-area">
+    <input type="text" id="chatInput" placeholder="Napíš čo hľadáš…" autocomplete="off">
+    <button class="chat-send" id="chatSend" onclick="sendChat()">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+    </button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
