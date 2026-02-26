@@ -110,18 +110,42 @@ def api_search():
     limit = int(request.args.get('limit', 50))
     offset = page * limit
 
+    # Filters
+    f_pristup = request.args.getlist('pristup')
+    f_poistovna = request.args.getlist('poistovna')
+    f_wc = request.args.get('wc')
+
     db = get_db()
 
+    # Build dynamic WHERE
+    where_parts = ["je_lekarna = 0", "lat IS NOT NULL"]
+    where_params = []
+
+    if f_pristup:
+        ph = ','.join('?' * len(f_pristup))
+        where_parts.append(f"pristup IN ({ph})")
+        where_params.extend(f_pristup)
+    if f_wc == '1':
+        where_parts.append("wc = 1")
+
+    poistovna_icos = None
+    if f_poistovna:
+        ph = ','.join('?' * len(f_poistovna))
+        poistovna_icos = set(r['ico'] for r in db.execute(
+            f"SELECT DISTINCT ico FROM poistovne WHERE poistovna IN ({ph})", f_poistovna
+        ).fetchall())
+
+    where = ' AND '.join(where_parts)
+
     if not q:
-        rows = db.execute("""
-            SELECT * FROM zariadenia 
-            WHERE je_lekarna = 0 AND lat IS NOT NULL
-            ORDER BY nazov
-            LIMIT ? OFFSET ?
-        """, (limit, offset)).fetchall()
-        total = db.execute(
-            "SELECT COUNT(*) FROM zariadenia WHERE je_lekarna = 0 AND lat IS NOT NULL"
-        ).fetchone()[0]
+        all_rows = db.execute(
+            f"SELECT * FROM zariadenia WHERE {where} ORDER BY nazov",
+            where_params
+        ).fetchall()
+        if poistovna_icos is not None:
+            all_rows = [r for r in all_rows if r['ico'] in poistovna_icos]
+        total = len(all_rows)
+        rows = all_rows[offset:offset + limit]
     else:
         q_norm = normalize(q)
         terms = q_norm.split()
@@ -132,14 +156,15 @@ def api_search():
             if all(t in normalize(row['nazov_oddelenia']) for t in terms):
                 matching_icos_odd.add(row['ico'])
 
-        all_zar = db.execute("""
-            SELECT id, ico, nazov, obec, obor_pece, druh_zarizeni
-            FROM zariadenia 
-            WHERE je_lekarna = 0 AND lat IS NOT NULL
-        """).fetchall()
+        all_zar = db.execute(
+            f"SELECT id, ico, nazov, obec, obor_pece, druh_zarizeni FROM zariadenia WHERE {where}",
+            where_params
+        ).fetchall()
 
         matching_ids = []
         for row in all_zar:
+            if poistovna_icos is not None and row['ico'] not in poistovna_icos:
+                continue
             searchable = normalize(' '.join([
                 row['nazov'] or '',
                 row['obec'] or '',
@@ -334,16 +359,40 @@ def api_search_nearby():
     page = int(request.args.get('page', 0))
     limit = int(request.args.get('limit', 50))
 
+    # Filters
+    f_pristup = request.args.getlist('pristup')
+    f_poistovna = request.args.getlist('poistovna')
+    f_wc = request.args.get('wc')
+
     if lat is None or lon is None:
         return jsonify({'error': 'lat and lon are required'}), 400
 
     db = get_db()
 
+    where_parts = ["je_lekarna = 0", "lat IS NOT NULL"]
+    where_params = []
+    if f_pristup:
+        ph = ','.join('?' * len(f_pristup))
+        where_parts.append(f"pristup IN ({ph})")
+        where_params.extend(f_pristup)
+    if f_wc == '1':
+        where_parts.append("wc = 1")
+
+    poistovna_icos = None
+    if f_poistovna:
+        ph = ','.join('?' * len(f_poistovna))
+        poistovna_icos = set(r['ico'] for r in db.execute(
+            f"SELECT DISTINCT ico FROM poistovne WHERE poistovna IN ({ph})", f_poistovna
+        ).fetchall())
+
+    where = ' AND '.join(where_parts)
+
     if not q:
-        all_rows = db.execute("""
-            SELECT * FROM zariadenia
-            WHERE je_lekarna = 0 AND lat IS NOT NULL
-        """).fetchall()
+        all_rows = db.execute(
+            f"SELECT * FROM zariadenia WHERE {where}", where_params
+        ).fetchall()
+        if poistovna_icos is not None:
+            all_rows = [r for r in all_rows if r['ico'] in poistovna_icos]
     else:
         q_norm = normalize(q)
         terms = q_norm.split()
@@ -354,13 +403,14 @@ def api_search_nearby():
             if all(t in normalize(row['nazov_oddelenia']) for t in terms):
                 matching_icos_odd.add(row['ico'])
 
-        all_zar = db.execute("""
-            SELECT * FROM zariadenia
-            WHERE je_lekarna = 0 AND lat IS NOT NULL
-        """).fetchall()
+        all_zar = db.execute(
+            f"SELECT * FROM zariadenia WHERE {where}", where_params
+        ).fetchall()
 
         all_rows = []
         for row in all_zar:
+            if poistovna_icos is not None and row['ico'] not in poistovna_icos:
+                continue
             searchable = normalize(' '.join([
                 row['nazov'] or '', row['obec'] or '',
                 row['obor_pece'] or '', row['druh_zarizeni'] or '',
