@@ -229,6 +229,11 @@ body {
   display: inline-block; padding: 2px 8px; border-radius: 5px;
   font-size: 10px; font-weight: 500; margin: 1px 2px;
 }
+.tag-more {
+  display: inline-block; padding: 2px 6px; border-radius: 5px;
+  font-size: 10px; font-weight: 600; margin: 1px 2px;
+  background: var(--surface2); color: var(--text3); border: 1px solid var(--border);
+}
 .tag-obor { background: var(--accent-light); color: var(--accent); }
 .tag-druh { background: var(--purple-bg); color: var(--purple); }
 
@@ -343,7 +348,7 @@ body {
 /* Detail two-column body */
 .detail-body {
   display: grid;
-  grid-template-columns: 1fr 2fr;
+  grid-template-columns: 1fr 1fr;
   flex: 1;
   min-height: 0;
 }
@@ -427,8 +432,7 @@ body {
     </button>
   </div>
   <div class="stats-bar">
-    <div class="stat">Výsledkov: <b id="countResults">—</b></div>
-    <div class="stat">Celkom: <b id="countTotal">—</b></div>
+    <div class="stat">Výsledky: <b id="countResults">—</b></div>
   </div>
 </div>
 
@@ -471,7 +475,6 @@ let locationActive = false;
 
 async function init() {
   const stats = await fetchJson('/api/stats');
-  if (stats) document.getElementById('countTotal').textContent = (stats.zariadenia_bez_lekarni || 0).toLocaleString();
   suggestionsData = await fetchJson('/api/suggestions') || [];
   await doSearch('');
 
@@ -587,7 +590,9 @@ function renderTable() {
   }
 
   tbody.innerHTML = currentResults.map(item => {
-    const odd = (item.oddelenia || []).slice(0, 3).map(o => `<span class="tag tag-obor">${o}</span>`).join('');
+    const allTags = item.oddelenia || [];
+    const shown = allTags.slice(0, 3).map(o => `<span class="tag tag-obor">${o}</span>`).join('');
+    const more = allTags.length > 3 ? `<span class="tag tag-more">+${allTags.length - 3}</span>` : '';
     const druh = item.druh_zarizeni && item.druh_zarizeni !== '-' ? `<span class="tag tag-druh">${item.druh_zarizeni}</span>` : '';
     
     if (hasDetail) {
@@ -601,7 +606,7 @@ function renderTable() {
       const distCol = showDist ? `<td style="text-align:right"><span class="dist-badge">${item.vzdialenost_km} km</span></td>` : '';
       return `<tr data-id="${item.id}" class="${item.id === selectedId ? 'active' : ''}" onclick="selectRow(${item.id})">
         <td>${item.nazov}</td>
-        <td class="col-tags">${odd}${druh}</td>
+        <td class="col-tags">${shown}${more}${druh}</td>
         <td>${item.adresa}</td>
         ${distCol}
       </tr>`;
@@ -625,7 +630,9 @@ function renderDetail(item) {
   const panel = document.getElementById('detailPanel');
   const days = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
 
-  const tags = (item.oddelenia || []).map(o => `<span class="tag tag-obor">${o}</span>`).join(' ');
+  const allDetailTags = item.oddelenia || [];
+  const shownTags = allDetailTags.map(o => `<span class="tag tag-obor">${o}</span>`).join(' ');
+  const moreTags = '';
   const druhTag = item.druh_zarizeni && item.druh_zarizeni !== '-' ? `<span class="tag tag-druh">${item.druh_zarizeni}</span>` : '';
 
   // Kontakt — vždy zobrazíme, s pomlčkami kde chýba
@@ -697,7 +704,7 @@ function renderDetail(item) {
     <div class="detail-header">
       <button class="detail-close" onclick="closeDetail()" title="Zavrieť detail">✕</button>
       <h2>${item.nazov}</h2>
-      <div>${tags} ${druhTag}</div>
+      <div>${shownTags} ${moreTags} ${druhTag}</div>
       <div class="meta">
         <span>📍 ${item.adresa}</span>
         <span>🏢 IČO: ${item.ico}</span>

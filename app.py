@@ -8,7 +8,7 @@ from math import radians, cos, sin, asin, sqrt
 from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__, template_folder=os.path.dirname(__file__))
-DB_PATH = os.path.join(os.path.dirname(__file__), 'zdravdash.db')
+DB_PATH = os.path.join(os.path.dirname(__file__), 'zdravdash_v3.db')
 
 
 def get_db():
