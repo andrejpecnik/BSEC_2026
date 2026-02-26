@@ -117,14 +117,88 @@ body {
 .stats-bar {
   display: flex; gap: 14px; margin-left: auto; white-space: nowrap;
 }
+
+/* === ADDRESS / LOCATION FILTER === */
+.location-wrap {
+  display: flex; gap: 6px; align-items: center; flex-shrink: 0;
+}
+.address-box {
+  width: 240px;
+  position: relative;
+}
+.address-box input {
+  width: 100%;
+  padding: 10px 30px 10px 34px;
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+.address-box input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(26,130,196,.1);
+  background: #fff;
+}
+.address-box input::placeholder { color: var(--text3); }
+.address-box input.active-filter {
+  border-color: var(--green);
+  background: var(--green-bg);
+  padding-right: 30px;
+}
+.address-pin {
+  position: absolute; left: 10px; top: 50%;
+  transform: translateY(-50%); color: var(--text3); pointer-events: none;
+}
+.address-clear {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; color: var(--text3); cursor: pointer;
+  font-size: 13px; padding: 2px 4px; border-radius: 4px; line-height: 1;
+}
+.address-clear:hover { color: var(--red); background: var(--red-bg); }
+.address-status {
+  position: absolute; top: calc(100% + 2px); left: 0; right: 0;
+  font-size: 11px; padding: 4px 10px; display: none;
+  border-radius: 6px; z-index: 50; white-space: nowrap;
+}
+.address-status.show { display: block; }
+.address-status.loading { color: var(--accent); background: var(--accent-light); }
+.address-status.error { color: var(--red); background: var(--red-bg); }
+.address-status.success { color: var(--green); background: var(--green-bg); }
+
+.gps-btn {
+  width: 38px; height: 38px; flex-shrink: 0;
+  border: 1.5px solid var(--border); border-radius: 8px;
+  background: var(--surface2); color: var(--text3);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+}
+.gps-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+.gps-btn.active { border-color: var(--green); color: var(--green); background: var(--green-bg); }
+.gps-btn.loading { animation: pulse 1s ease infinite; }
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:.5; } }
+
+.dist-badge {
+  display: inline-block; padding: 2px 7px; border-radius: 5px;
+  font-size: 10px; font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--green-bg); color: var(--green); white-space: nowrap;
+}
 .stat { font-size: 12px; color: var(--text3); }
 .stat b { color: var(--accent); font-weight: 600; font-family: 'JetBrains Mono', monospace; }
 
 /* === MAIN === */
 .main {
   display: grid;
-  grid-template-columns: 1fr 420px;
+  grid-template-columns: 1fr;
   height: calc(100vh - 57px);
+  transition: grid-template-columns .25s ease;
+}
+.main.has-detail {
+  grid-template-columns: 340px 1fr;
 }
 
 /* === TABLE === */
@@ -147,6 +221,9 @@ body {
 }
 .table-panel tbody td { padding: 8px 14px; color: var(--text2); vertical-align: top; }
 .table-panel tbody td:first-child { color: var(--text); font-weight: 500; }
+
+/* Compact mode when detail is open */
+.main.has-detail .table-panel .col-tags { display: none; }
 
 .tag {
   display: inline-block; padding: 2px 8px; border-radius: 5px;
@@ -175,16 +252,30 @@ body {
 .detail-panel {
   border-left: 1px solid var(--border);
   background: var(--surface2); overflow-y: auto;
+  display: none;
 }
+.main.has-detail .detail-panel {
+  display: flex;
+  flex-direction: column;
+}
+.detail-close {
+  position: absolute; top: 14px; right: 14px;
+  width: 28px; height: 28px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text3); cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s; z-index: 5;
+}
+.detail-close:hover { background: var(--red-bg); color: var(--red); border-color: var(--red); }
 .detail-empty {
   display: flex; align-items: center; justify-content: center;
   height: 100%; color: var(--text3); font-size: 13px; text-align: center; padding: 32px;
 }
 .detail-header {
   padding: 18px 20px; border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--surface); position: relative;
 }
-.detail-header h2 { font-size: 16px; font-weight: 700; line-height: 1.3; margin-bottom: 6px; color: var(--text); }
+.detail-header h2 { font-size: 16px; font-weight: 700; line-height: 1.3; margin-bottom: 6px; color: var(--text); padding-right: 36px; }
 .detail-header .meta {
   font-size: 11px; color: var(--text3);
   display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px;
@@ -249,6 +340,34 @@ body {
 .contact-grid a { color: var(--accent); text-decoration: none; }
 .contact-grid a:hover { text-decoration: underline; }
 
+/* Detail two-column body */
+.detail-body {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  flex: 1;
+  min-height: 0;
+}
+.detail-left {
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+}
+.detail-right {
+  position: relative;
+  min-height: 300px;
+  padding: 16px;
+  background: var(--surface2);
+}
+.detail-right #map {
+  position: absolute;
+  top: 16px; left: 16px; right: 16px; bottom: 16px;
+  height: auto !important;
+  margin: 0 !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 2px 12px rgba(26,43,61,.1), inset 0 0 0 1px rgba(255,255,255,.6) !important;
+  overflow: hidden;
+}
+
 #map {
   height: 210px; border-radius: 8px; margin: 0 20px 4px;
   border: 1px solid var(--border);
@@ -271,9 +390,16 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
 
 @media (max-width: 900px) {
-  .main { grid-template-columns: 1fr; }
-  .detail-panel { border-left: none; border-top: 1px solid var(--border); max-height: 50vh; }
+  .main { grid-template-columns: 1fr !important; }
+  .main.has-detail .table-panel { max-height: 35vh; }
+  .main.has-detail .detail-panel { border-left: none; border-top: 1px solid var(--border); }
+  .detail-body { grid-template-columns: 1fr !important; }
+  .detail-left { border-right: none !important; }
+  .detail-right { min-height: 280px; padding: 12px; }
+  .detail-right #map { position: relative !important; height: 250px !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; }
   .header { flex-wrap: wrap; }
+  .location-wrap { width: 100%; order: 3; }
+  .address-box { flex: 1; }
 }
 </style>
 </head>
@@ -289,37 +415,40 @@ body {
     <input type="text" id="searchInput" placeholder='Hľadaj obor, oddelenie, názov, obec… napr. "kardiológia"' autocomplete="off">
     <div class="suggestions" id="suggestions"></div>
   </div>
+  <div class="location-wrap">
+    <div class="address-box">
+      <svg class="address-pin" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      <input type="text" id="addressInput" placeholder="Adresa alebo obec…" autocomplete="off">
+      <button id="addressClear" class="address-clear" title="Zrušiť filter" style="display:none">✕</button>
+      <div class="address-status" id="addressStatus"></div>
+    </div>
+    <button id="gpsBtn" class="gps-btn" title="Použiť moju polohu">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+    </button>
+  </div>
   <div class="stats-bar">
     <div class="stat">Výsledkov: <b id="countResults">—</b></div>
     <div class="stat">Celkom: <b id="countTotal">—</b></div>
   </div>
 </div>
 
-<div class="main">
+<div class="main" id="mainLayout">
   <div class="table-panel" id="tablePanel">
     <table>
       <thead>
         <tr>
           <th>Názov</th>
-          <th>Obor / Oddelenie</th>
+          <th class="col-tags">Obor / Oddelenie</th>
           <th>Adresa</th>
-          <th>IČO</th>
         </tr>
       </thead>
       <tbody id="tableBody">
-        <tr><td colspan="4"><div class="loading"><div class="spinner"></div>Načítavam…</div></td></tr>
+        <tr><td colspan="3"><div class="loading"><div class="spinner"></div>Načítavam…</div></td></tr>
       </tbody>
     </table>
     <div class="pagination" id="pagination"></div>
   </div>
-  <div class="detail-panel" id="detailPanel">
-    <div class="detail-empty">
-      <div>
-        <div style="font-size:36px;margin-bottom:10px">🔍</div>
-        <p>Zadaj hľadaný výraz a klikni na riadok<br>pre zobrazenie detailu</p>
-      </div>
-    </div>
-  </div>
+  <div class="detail-panel" id="detailPanel"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -333,6 +462,10 @@ let selectedId = null;
 let suggestionsData = [];
 let map = null;
 let debounceTimer = null;
+let addrDebounce = null;
+let locationLat = null;
+let locationLon = null;
+let locationActive = false;
 
 // ==================== INIT ====================
 
@@ -370,6 +503,23 @@ async function init() {
   });
 
   input.addEventListener('blur', () => setTimeout(() => suggBox.classList.remove('active'), 150));
+
+  // === LOCATION FILTER ===
+  const addrInput = document.getElementById('addressInput');
+  addrInput.addEventListener('input', () => {
+    clearTimeout(addrDebounce);
+    if (!addrInput.value.trim()) { clearLocation(); return; }
+    addrDebounce = setTimeout(() => geocodeAddress(addrInput.value.trim()), 700);
+  });
+  addrInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      clearTimeout(addrDebounce);
+      if (addrInput.value.trim()) geocodeAddress(addrInput.value.trim());
+    }
+  });
+  document.getElementById('addressClear').addEventListener('click', clearLocation);
+  document.getElementById('gpsBtn').addEventListener('click', useMyLocation);
 }
 
 // ==================== API ====================
@@ -381,13 +531,17 @@ async function fetchJson(url) {
 
 async function doSearch(query) {
   currentQuery = query;
-  const data = await fetchJson(`/api/search?q=${encodeURIComponent(query)}&page=${currentPage}&limit=${PAGE_SIZE}`);
+  let data;
+  if (locationActive && locationLat !== null) {
+    data = await fetchJson(`/api/search_nearby?q=${encodeURIComponent(query)}&lat=${locationLat}&lon=${locationLon}&page=${currentPage}&limit=${PAGE_SIZE}`);
+  } else {
+    data = await fetchJson(`/api/search?q=${encodeURIComponent(query)}&page=${currentPage}&limit=${PAGE_SIZE}`);
+  }
   if (!data) return;
   totalResults = data.total;
   currentResults = data.results;
   document.getElementById('countResults').textContent = totalResults.toLocaleString();
   renderTable();
-  if (!selectedId) showEmptyDetail(totalResults === 0);
 }
 
 async function loadDetail(id) {
@@ -402,20 +556,56 @@ async function loadDetail(id) {
 
 function renderTable() {
   const tbody = document.getElementById('tableBody');
+  const thead = document.querySelector('.table-panel thead tr');
+  const showDist = locationActive && currentResults.length > 0 && currentResults[0].vzdialenost_km !== undefined;
+  const hasDetail = document.getElementById('mainLayout').classList.contains('has-detail');
+  const colCount = hasDetail ? (showDist ? 3 : 2) : (showDist ? 3 : 2);
+
   if (currentResults.length === 0) {
+    if (hasDetail) {
+      thead.innerHTML = showDist
+        ? '<th>Názov</th><th>Adresa</th><th style="text-align:right">Vzd.</th>'
+        : '<th>Názov</th><th>Adresa</th>';
+    } else {
+      thead.innerHTML = showDist
+        ? '<th>Názov</th><th class="col-tags">Obor / Oddelenie</th><th>Adresa</th><th style="text-align:right">Vzdialenosť</th>'
+        : '<th>Názov</th><th class="col-tags">Obor / Oddelenie</th><th>Adresa</th>';
+    }
     tbody.innerHTML = `<tr><td colspan="4"><div class="loading" style="padding:60px"><div style="font-size:36px;margin-bottom:10px">🔎</div>Žiadne výsledky. Skús iný výraz.</div></td></tr>`;
     document.getElementById('pagination').innerHTML = '';
     return;
   }
+
+  if (hasDetail) {
+    thead.innerHTML = showDist
+      ? '<th>Názov</th><th>Adresa</th><th style="text-align:right">Vzd.</th>'
+      : '<th>Názov</th><th>Adresa</th>';
+  } else {
+    thead.innerHTML = showDist
+      ? '<th>Názov</th><th class="col-tags">Obor / Oddelenie</th><th>Adresa</th><th style="text-align:right">Vzdialenosť</th>'
+      : '<th>Názov</th><th class="col-tags">Obor / Oddelenie</th><th>Adresa</th>';
+  }
+
   tbody.innerHTML = currentResults.map(item => {
     const odd = (item.oddelenia || []).slice(0, 3).map(o => `<span class="tag tag-obor">${o}</span>`).join('');
     const druh = item.druh_zarizeni && item.druh_zarizeni !== '-' ? `<span class="tag tag-druh">${item.druh_zarizeni}</span>` : '';
-    return `<tr data-id="${item.id}" class="${item.id === selectedId ? 'active' : ''}" onclick="selectRow(${item.id})">
-      <td>${item.nazov}</td>
-      <td>${odd}${druh}</td>
-      <td>${item.adresa}</td>
-      <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">${item.ico}</td>
-    </tr>`;
+    
+    if (hasDetail) {
+      const distCol = showDist ? `<td style="text-align:right"><span class="dist-badge">${item.vzdialenost_km} km</span></td>` : '';
+      return `<tr data-id="${item.id}" class="${item.id === selectedId ? 'active' : ''}" onclick="selectRow(${item.id})">
+        <td>${item.nazov}</td>
+        <td style="font-size:12px">${item.adresa}</td>
+        ${distCol}
+      </tr>`;
+    } else {
+      const distCol = showDist ? `<td style="text-align:right"><span class="dist-badge">${item.vzdialenost_km} km</span></td>` : '';
+      return `<tr data-id="${item.id}" class="${item.id === selectedId ? 'active' : ''}" onclick="selectRow(${item.id})">
+        <td>${item.nazov}</td>
+        <td class="col-tags">${odd}${druh}</td>
+        <td>${item.adresa}</td>
+        ${distCol}
+      </tr>`;
+    }
   }).join('');
 
   const totalPages = Math.ceil(totalResults / PAGE_SIZE);
@@ -505,6 +695,7 @@ function renderDetail(item) {
 
   panel.innerHTML = `
     <div class="detail-header">
+      <button class="detail-close" onclick="closeDetail()" title="Zavrieť detail">✕</button>
       <h2>${item.nazov}</h2>
       <div>${tags} ${druhTag}</div>
       <div class="meta">
@@ -513,12 +704,16 @@ function renderDetail(item) {
         <span>🩺 ${item.forma_pece}</span>
       </div>
     </div>
-    ${contact}
-    <div style="padding-top:14px;background:var(--surface);margin-bottom:1px">
-      <div id="map"></div>
-    </div>
-    ${hoursHtml}
-    ${pharmHtml}`;
+    <div class="detail-body">
+      <div class="detail-left">
+        ${contact}
+        ${hoursHtml}
+        ${pharmHtml}
+      </div>
+      <div class="detail-right">
+        <div id="map"></div>
+      </div>
+    </div>`;
 
   setTimeout(() => initMap(item), 50);
 }
@@ -575,8 +770,16 @@ function initMap(item) {
 
 function selectRow(id) {
   selectedId = id;
+  document.getElementById('mainLayout').classList.add('has-detail');
   renderTable();
   loadDetail(id);
+}
+
+function closeDetail() {
+  selectedId = null;
+  document.getElementById('mainLayout').classList.remove('has-detail');
+  document.getElementById('detailPanel').innerHTML = '';
+  renderTable();
 }
 
 function goPage(p) {
@@ -610,6 +813,93 @@ function showSuggestions(q, box) {
 
 function updateSel(items, idx) {
   items.forEach((el, i) => el.classList.toggle('sel', i === idx));
+}
+
+// ==================== LOCATION FILTER ====================
+
+function setLocationStatus(cls, text, autohide) {
+  const el = document.getElementById('addressStatus');
+  el.className = 'address-status show ' + cls;
+  el.textContent = text;
+  if (autohide) setTimeout(() => { el.className = 'address-status'; }, 3000);
+}
+
+function activateLocation(lat, lon, label) {
+  locationLat = lat;
+  locationLon = lon;
+  locationActive = true;
+  const inp = document.getElementById('addressInput');
+  inp.classList.add('active-filter');
+  document.getElementById('addressClear').style.display = 'block';
+  if (label) inp.value = label;
+  setLocationStatus('success', '📍 ' + label, true);
+  currentPage = 0;
+  selectedId = null;
+  doSearch(currentQuery);
+}
+
+function clearLocation() {
+  locationLat = null;
+  locationLon = null;
+  locationActive = false;
+  const inp = document.getElementById('addressInput');
+  inp.value = '';
+  inp.classList.remove('active-filter');
+  document.getElementById('addressClear').style.display = 'none';
+  document.getElementById('addressStatus').className = 'address-status';
+  document.getElementById('gpsBtn').classList.remove('active');
+  currentPage = 0;
+  doSearch(currentQuery);
+}
+
+async function geocodeAddress(address) {
+  setLocationStatus('loading', 'Hľadám adresu…', false);
+  try {
+    const q = encodeURIComponent(address + ', Jihomoravský kraj, Česko');
+    const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1&countrycodes=cz`);
+    if (resp.ok) {
+      const ct = resp.headers.get('content-type') || '';
+      if (ct.includes('json')) {
+        const data = await resp.json();
+        if (data && data.length > 0) {
+          const name = data[0].display_name.split(',').slice(0, 2).join(',').trim();
+          activateLocation(parseFloat(data[0].lat), parseFloat(data[0].lon), name);
+          document.getElementById('gpsBtn').classList.remove('active');
+          return;
+        }
+      }
+    }
+  } catch (e) { console.warn('Nominatim error:', e); }
+  setLocationStatus('error', 'Adresa nenájdená', true);
+}
+
+function useMyLocation() {
+  const btn = document.getElementById('gpsBtn');
+  if (!navigator.geolocation) {
+    setLocationStatus('error', 'Geolokácia nie je podporovaná', true);
+    return;
+  }
+  btn.classList.add('loading');
+  setLocationStatus('loading', 'Zisťujem polohu…', false);
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      btn.classList.remove('loading');
+      btn.classList.add('active');
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      activateLocation(lat, lon, 'Moja poloha');
+    },
+    (err) => {
+      btn.classList.remove('loading');
+      let msg = 'Nepodarilo sa zistiť polohu';
+      if (err.code === 1) msg = 'Prístup k polohe bol zamietnutý';
+      else if (err.code === 2) msg = 'Poloha nie je dostupná';
+      else if (err.code === 3) msg = 'Časový limit vypršal';
+      setLocationStatus('error', msg, true);
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+  );
 }
 
 document.addEventListener('DOMContentLoaded', init);

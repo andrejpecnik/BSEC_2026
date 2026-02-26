@@ -280,6 +280,84 @@ def api_detail(zariadenie_id):
     return jsonify(result)
 
 
+@app.route('/api/search_nearby')
+def api_search_nearby():
+    """Vyhľadá zariadenia zoradené podľa vzdialenosti od zadaných súradníc."""
+    q = request.args.get('q', '').strip()
+    lat = request.args.get('lat', type=float)
+    lon = request.args.get('lon', type=float)
+    page = int(request.args.get('page', 0))
+    limit = int(request.args.get('limit', 50))
+
+    if lat is None or lon is None:
+        return jsonify({'error': 'lat and lon are required'}), 400
+
+    db = get_db()
+
+    if not q:
+        all_rows = db.execute("""
+            SELECT * FROM zariadenia
+            WHERE je_lekarna = 0 AND lat IS NOT NULL
+        """).fetchall()
+    else:
+        q_norm = normalize(q)
+        terms = q_norm.split()
+
+        matching_icos_odd = set()
+        all_odd = db.execute("SELECT ico, nazov_oddelenia FROM oddelenia").fetchall()
+        for row in all_odd:
+            if all(t in normalize(row['nazov_oddelenia']) for t in terms):
+                matching_icos_odd.add(row['ico'])
+
+        all_zar = db.execute("""
+            SELECT * FROM zariadenia
+            WHERE je_lekarna = 0 AND lat IS NOT NULL
+        """).fetchall()
+
+        all_rows = []
+        for row in all_zar:
+            searchable = normalize(' '.join([
+                row['nazov'] or '', row['obec'] or '',
+                row['obor_pece'] or '', row['druh_zarizeni'] or '',
+                row['ico'] or ''
+            ]))
+            if row['ico'] in matching_icos_odd or all(t in searchable for t in terms):
+                all_rows.append(row)
+
+    rows_with_dist = []
+    for row in all_rows:
+        if row['lat'] and row['lon']:
+            dist = haversine(lat, lon, row['lat'], row['lon'])
+            rows_with_dist.append((dist, row))
+
+    rows_with_dist.sort(key=lambda x: x[0])
+    total = len(rows_with_dist)
+    page_rows = rows_with_dist[page * limit:(page + 1) * limit]
+
+    results = []
+    for dist, row in page_rows:
+        oddelenia = db.execute(
+            "SELECT DISTINCT nazov_oddelenia FROM oddelenia WHERE ico = ?",
+            (row['ico'],)
+        ).fetchall()
+        results.append({
+            'id': row['id'],
+            'ico': clean_field(row['ico']) or '-',
+            'nazov': clean_field(row['nazov']) or '-',
+            'adresa': build_address(row['ulice'], row['cislo'], row['psc'], row['obec']) or '-',
+            'obec': clean_field(row['obec']) or '-',
+            'lat': row['lat'], 'lon': row['lon'],
+            'obor_pece': clean_field(row['obor_pece']) or '-',
+            'druh_zarizeni': clean_field(row['druh_zarizeni']) or '-',
+            'forma_pece': clean_field(row['forma_pece']) or '-',
+            'oddelenia': [o['nazov_oddelenia'] for o in oddelenia] if oddelenia else [],
+            'vzdialenost_km': round(dist, 2),
+        })
+
+    db.close()
+    return jsonify({'total': total, 'page': page, 'limit': limit, 'results': results})
+
+
 @app.route('/api/suggestions')
 def api_suggestions():
     db = get_db()
