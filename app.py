@@ -441,6 +441,239 @@ def api_stats():
     return jsonify(stats)
 
 
+# ==================== AI CHAT (Gemini) ====================
+
+def get_ai_client():
+    """Inicializácia Vertex AI klienta."""
+    try:
+        from google import genai
+        creds_path = os.path.join(os.path.dirname(__file__), 'red-splice-488519-s6-60554b78a80a.json')
+        if os.path.exists(creds_path):
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path
+        client = genai.Client(vertexai=True, project="red-splice-488519-s6")
+        return client
+    except Exception as e:
+        print(f"AI client error: {e}")
+        return None
+
+
+def build_ai_system_prompt():
+    """Systémový prompt pre Gemini s popisom DB."""
+    db = get_db()
+
+    # Unikátne oddelenia
+    oddelenia = db.execute(
+        "SELECT DISTINCT nazov_oddelenia FROM oddelenia ORDER BY nazov_oddelenia"
+    ).fetchall()
+    odd_list = [o['nazov_oddelenia'] for o in oddelenia]
+
+    # Unikátne obce
+    obce = db.execute(
+        "SELECT DISTINCT obec FROM zariadenia WHERE je_lekarna = 0 AND obec != '' ORDER BY obec"
+    ).fetchall()
+    obce_list = [o['obec'] for o in obce]
+
+    # Unikátne poisťovne
+    poistovne = db.execute("SELECT DISTINCT poistovna FROM poistovne ORDER BY poistovna").fetchall()
+    poist_list = [p['poistovna'] for p in poistovne]
+
+    # Unikátne druhy zariadení
+    druhy = db.execute(
+        "SELECT DISTINCT druh_zarizeni FROM zariadenia WHERE je_lekarna = 0 AND druh_zarizeni != '' ORDER BY druh_zarizeni"
+    ).fetchall()
+    druhy_list = [d['druh_zarizeni'] for d in druhy]
+
+    # Prístupy
+    pristupy = db.execute(
+        "SELECT DISTINCT pristup FROM zariadenia WHERE pristup IS NOT NULL AND pristup != ''"
+    ).fetchall()
+    pristup_list = [p['pristup'] for p in pristupy]
+
+    db.close()
+
+    return f"""Si AI asistent zdravotníckeho dashboardu pre Jihomoravský kraj (Česko).
+Pomáhaš používateľom nájsť zdravotnícke zariadenia podľa ich požiadaviek.
+
+DATABÁZA obsahuje {len(odd_list)} typov oddelení, zariadenia v {len(obce_list)} obciach.
+
+DOSTUPNÉ FILTRE (použi ich na vyhľadávanie):
+- oddelenie: názov oddelenia/oboru. Dostupné: {', '.join(odd_list[:60])}...
+- obec: mesto/obec. Najčastejšie: {', '.join(obce_list[:30])}...
+- poistovna: zmluvná poisťovňa. Dostupné: {', '.join(poist_list)}
+- pristup: bezbariérový prístup. Hodnoty: {', '.join(pristup_list)}
+- wc: WC k dispozícii. Hodnoty: 1 (áno), 0 (nie)
+- druh_zarizeni: typ zariadenia. Dostupné: {', '.join(druhy_list[:20])}...
+
+PRAVIDLÁ:
+1. Na základe otázky používateľa extrahuj relevantné filtre.
+2. Odpovedaj VŽDY vo formáte JSON s dvoma kľúčmi:
+   - "filters": objekt s filtrami (len tie, ktoré používateľ zmienil)
+   - "response": krátka ľudská odpoveď v slovenčine/češtine (2-3 vety, čo hľadáš a čo nájdeš)
+3. Ak používateľ nezmieni konkrétny filter, NEDÁVAJ ho do filters.
+4. Pre oddelenie použi presný názov z dostupných hodnôt (fuzzy matching — "zubár" → "Stomatologie", "očný" → "Oční (oftalmologie)", "srdce/kardio" → "Kardiologie", "kožný" → "Kožní (dermatovenerologie)", "detský lekár" → "Dětské (pediatrie)", "obvoďák" → "Všeobecné praktické lékařství", "ženský" → "Ženské (gynekologie, porodnictví)" atď.)
+5. Ak používateľ pýta niečo mimo zdravotnícke vyhľadávanie, odpovedz s "filters": {{}}.
+6. Ak nie si istý, opýtaj sa v "response" a daj "filters": {{}}.
+
+PRÍKLADY:
+Vstup: "Hľadám zubára v Brne čo berie VZP"
+Výstup: {{"filters": {{"oddelenie": "Stomatologie", "obec": "Brno", "poistovna": "VZP"}}, "response": "Hľadám stomatologické zariadenia v Brne so zmluvou s VZP."}}
+
+Vstup: "Kardiológia s bezbariérovým prístupom"
+Výstup: {{"filters": {{"oddelenie": "Kardiologie", "pristup": "přístupné"}}, "response": "Hľadám kardiologické zariadenia s bezbariérovým prístupom v Jihomoravskom kraji."}}
+
+Vstup: "čo je najbližšia lekáreň?"
+Výstup: {{"filters": {{}}, "response": "Pre vyhľadanie najbližšej lekárne klikni na ľubovoľné zariadenie — v detaile uvidíš 3 najbližšie lekárne. Alebo mi povedz, aké zariadenie hľadáš, a ja ti ho nájdem."}}
+
+ODPOVEDAJ LEN VALIDNÝM JSON-om, nič iné."""
+
+
+@app.route('/api/ai_chat', methods=['POST'])
+def api_ai_chat():
+    """
+    AI Chat endpoint — prijme ľudskú otázku, extrahuje filtre cez Gemini,
+    vyhľadá v DB a vráti výsledky.
+    """
+    data = request.get_json()
+    if not data or 'message' not in data:
+        return jsonify({'error': 'Chýba správa'}), 400
+
+    user_message = data['message'].strip()
+    if not user_message:
+        return jsonify({'error': 'Prázdna správa'}), 400
+
+    # 1) Zavolať Gemini
+    client = get_ai_client()
+    if not client:
+        return jsonify({
+            'ai_response': 'AI asistent momentálne nie je dostupný. Použi klasické vyhľadávanie.',
+            'filters': {},
+            'results': [],
+            'total': 0
+        })
+
+    system_prompt = build_ai_system_prompt()
+
+    try:
+        from google import genai
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=f"{system_prompt}\n\nPoužívateľ: {user_message}"
+        )
+        ai_text = response.text.strip()
+
+        # Parsovať JSON z odpovede
+        import json as json_module
+        # Odstrániť prípadné markdown backticky
+        clean = ai_text.replace('```json', '').replace('```', '').strip()
+        parsed = json_module.loads(clean)
+
+        filters = parsed.get('filters', {})
+        ai_response = parsed.get('response', 'Hľadám...')
+
+    except Exception as e:
+        print(f"Gemini error: {e}")
+        return jsonify({
+            'ai_response': f'Chyba pri komunikácii s AI: {str(e)}',
+            'filters': {},
+            'results': [],
+            'total': 0
+        })
+
+    # 2) Vyhľadať v DB podľa filtrov
+    db = get_db()
+
+    conditions = ["je_lekarna = 0", "lat IS NOT NULL"]
+    params = []
+
+    if 'oddelenie' in filters:
+        # Nájdi IČO cez oddelenia tabuľku
+        matching_icos = db.execute(
+            "SELECT DISTINCT ico FROM oddelenia WHERE nazov_oddelenia LIKE ?",
+            (f"%{filters['oddelenie']}%",)
+        ).fetchall()
+        ico_set = [r['ico'] for r in matching_icos]
+        if ico_set:
+            placeholders = ','.join('?' * len(ico_set))
+            conditions.append(f"ico IN ({placeholders})")
+            params.extend(ico_set)
+        else:
+            # Fallback: hľadaj v obor_pece
+            conditions.append("obor_pece LIKE ?")
+            params.append(f"%{filters['oddelenie']}%")
+
+    if 'obec' in filters:
+        conditions.append("obec LIKE ?")
+        params.append(f"%{filters['obec']}%")
+
+    if 'pristup' in filters:
+        conditions.append("pristup = ?")
+        params.append(filters['pristup'])
+
+    if 'wc' in filters:
+        conditions.append("wc = ?")
+        params.append(int(filters['wc']))
+
+    if 'druh_zarizeni' in filters:
+        conditions.append("druh_zarizeni LIKE ?")
+        params.append(f"%{filters['druh_zarizeni']}%")
+
+    where = " AND ".join(conditions)
+    query = f"SELECT * FROM zariadenia WHERE {where} ORDER BY nazov LIMIT 50"
+    rows = db.execute(query, params).fetchall()
+
+    # Ak je filter na poisťovňu, dofiltrovať
+    if 'poistovna' in filters:
+        filtered_rows = []
+        for row in rows:
+            poist = db.execute(
+                "SELECT poistovna FROM poistovne WHERE ico = ? AND poistovna = ?",
+                (row['ico'], filters['poistovna'])
+            ).fetchone()
+            if poist:
+                filtered_rows.append(row)
+        rows = filtered_rows
+
+    # Total count
+    count_query = f"SELECT COUNT(*) FROM zariadenia WHERE {where}"
+    total = db.execute(count_query, params).fetchone()[0]
+
+    # Formátovať výsledky
+    results = []
+    for row in rows[:20]:  # Max 20 pre chat
+        oddelenia = db.execute(
+            "SELECT DISTINCT nazov_oddelenia FROM oddelenia WHERE ico = ?",
+            (row['ico'],)
+        ).fetchall()
+        poistovne = db.execute(
+            "SELECT DISTINCT poistovna FROM poistovne WHERE ico = ? ORDER BY poistovna",
+            (row['ico'],)
+        ).fetchall()
+        results.append({
+            'id': row['id'],
+            'ico': clean_field(row['ico']) or '-',
+            'nazov': clean_field(row['nazov']) or '-',
+            'adresa': build_address(row['ulice'], row['cislo'], row['psc'], row['obec']) or '-',
+            'obec': clean_field(row['obec']) or '-',
+            'lat': row['lat'],
+            'lon': row['lon'],
+            'obor_pece': clean_field(row['obor_pece']) or '-',
+            'druh_zarizeni': clean_field(row['druh_zarizeni']) or '-',
+            'forma_pece': clean_field(row['forma_pece']) or '-',
+            'oddelenia': [o['nazov_oddelenia'] for o in oddelenia] if oddelenia else [],
+            'poistovne': [p['poistovna'] for p in poistovne] if poistovne else [],
+            'pristup': clean_field(row['pristup']),
+        })
+
+    db.close()
+
+    return jsonify({
+        'ai_response': ai_response,
+        'filters': filters,
+        'results': results,
+        'total': len(results)
+    })
+
+
 if __name__ == '__main__':
     if not os.path.exists(DB_PATH):
         print("Databáza neexistuje. Spusti najprv: python create_db.py")
