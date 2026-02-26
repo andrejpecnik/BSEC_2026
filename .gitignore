@@ -1,5 +1,8 @@
 # ignore AI Agent api
 red-splice-488519-s6-60554b78a80a.json
 
+# ignore database file
+MedicApp.db
+
 # ignore virtual enviroments
 *./venv
