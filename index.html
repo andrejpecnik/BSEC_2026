@@ -236,6 +236,24 @@ body {
 }
 .tag-obor { background: var(--accent-light); color: var(--accent); }
 .tag-druh { background: var(--purple-bg); color: var(--purple); }
+.tag-poist { background: var(--green-bg); color: var(--green); }
+
+/* MHD */
+.mhd-item { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; }
+.mhd-item + .mhd-item { border-top: 1px solid var(--border); }
+.mhd-num {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--orange-bg); color: var(--orange);
+  font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.mhd-info { flex: 1; }
+.mhd-info .mname { font-size: 12px; font-weight: 500; color: var(--text); }
+.mhd-info .mdetail { font-size: 11px; color: var(--text3); margin-top: 1px; }
+.mhd-dist {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  color: var(--orange); font-weight: 600; white-space: nowrap;
+}
 
 /* === PAGINATION === */
 .pagination {
@@ -345,6 +363,17 @@ body {
 .contact-grid a { color: var(--accent); text-decoration: none; }
 .contact-grid a:hover { text-decoration: underline; }
 
+/* Accessibility */
+.access-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.access-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 6px 12px; border-radius: 6px;
+  font-size: 12px; font-weight: 500;
+}
+.access-yes { background: var(--green-bg); color: var(--green); }
+.access-partial { background: var(--orange-bg); color: var(--orange); }
+.access-no { background: var(--red-bg); color: var(--red); }
+
 /* Detail two-column body */
 .detail-body {
   display: grid;
@@ -443,6 +472,7 @@ body {
         <tr>
           <th>Názov</th>
           <th class="col-tags">Obor / Oddelenie</th>
+          <th class="col-tags">Poisťovne</th>
           <th>Adresa</th>
         </tr>
       </thead>
@@ -562,7 +592,11 @@ function renderTable() {
   const thead = document.querySelector('.table-panel thead tr');
   const showDist = locationActive && currentResults.length > 0 && currentResults[0].vzdialenost_km !== undefined;
   const hasDetail = document.getElementById('mainLayout').classList.contains('has-detail');
-  const colCount = hasDetail ? (showDist ? 3 : 2) : (showDist ? 3 : 2);
+
+  function buildPoistTags(item) {
+    const p = item.poistovne || [];
+    return p.length ? p.map(x => `<span class="tag tag-poist">${x}</span>`).join('') : '<span style="color:var(--text3)">-</span>';
+  }
 
   if (currentResults.length === 0) {
     if (hasDetail) {
@@ -571,10 +605,10 @@ function renderTable() {
         : '<th>Názov</th><th>Adresa</th>';
     } else {
       thead.innerHTML = showDist
-        ? '<th>Názov</th><th class="col-tags">Obor / Oddelenie</th><th>Adresa</th><th style="text-align:right">Vzdialenosť</th>'
-        : '<th>Názov</th><th class="col-tags">Obor / Oddelenie</th><th>Adresa</th>';
+        ? '<th>Názov</th><th class="col-tags">Obor / Oddelenie</th><th class="col-tags">Poisťovne</th><th>Adresa</th><th style="text-align:right">Vzdialenosť</th>'
+        : '<th>Názov</th><th class="col-tags">Obor / Oddelenie</th><th class="col-tags">Poisťovne</th><th>Adresa</th>';
     }
-    tbody.innerHTML = `<tr><td colspan="4"><div class="loading" style="padding:60px"><div style="font-size:36px;margin-bottom:10px">🔎</div>Žiadne výsledky. Skús iný výraz.</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5"><div class="loading" style="padding:60px"><div style="font-size:36px;margin-bottom:10px">🔎</div>Žiadne výsledky. Skús iný výraz.</div></td></tr>`;
     document.getElementById('pagination').innerHTML = '';
     return;
   }
@@ -585,8 +619,8 @@ function renderTable() {
       : '<th>Názov</th><th>Adresa</th>';
   } else {
     thead.innerHTML = showDist
-      ? '<th>Názov</th><th class="col-tags">Obor / Oddelenie</th><th>Adresa</th><th style="text-align:right">Vzdialenosť</th>'
-      : '<th>Názov</th><th class="col-tags">Obor / Oddelenie</th><th>Adresa</th>';
+      ? '<th>Názov</th><th class="col-tags">Obor / Oddelenie</th><th class="col-tags">Poisťovne</th><th>Adresa</th><th style="text-align:right">Vzdialenosť</th>'
+      : '<th>Názov</th><th class="col-tags">Obor / Oddelenie</th><th class="col-tags">Poisťovne</th><th>Adresa</th>';
   }
 
   tbody.innerHTML = currentResults.map(item => {
@@ -607,6 +641,7 @@ function renderTable() {
       return `<tr data-id="${item.id}" class="${item.id === selectedId ? 'active' : ''}" onclick="selectRow(${item.id})">
         <td>${item.nazov}</td>
         <td class="col-tags">${shown}${more}${druh}</td>
+        <td class="col-tags">${buildPoistTags(item)}</td>
         <td>${item.adresa}</td>
         ${distCol}
       </tr>`;
@@ -650,6 +685,29 @@ function renderDetail(item) {
       <span class="label">Email:</span><span class="value">${emailVal}</span>
       <span class="label">Web:</span><span class="value">${webVal}</span>
     </div></div>`;
+
+  // Prístupnosť a WC
+  let accessHtml = '';
+  const hasPristup = item.pristup !== null && item.pristup !== undefined;
+  const hasWc = item.wc !== null && item.wc !== undefined;
+  if (hasPristup || hasWc) {
+    accessHtml = '<div class="detail-section"><h3>Prístupnosť</h3><div class="access-row">';
+    if (hasPristup) {
+      let icon, cls;
+      if (item.pristup === 'přístupné') { icon = '♿'; cls = 'access-yes'; }
+      else if (item.pristup === 'přístupné s asistencí') { icon = '🤝'; cls = 'access-partial'; }
+      else { icon = '🚫'; cls = 'access-no'; }
+      accessHtml += `<span class="access-badge ${cls}">${icon} ${item.pristup}</span>`;
+    }
+    if (hasWc) {
+      if (item.wc === 1) {
+        accessHtml += '<span class="access-badge access-yes">🚻 WC k dispozícii</span>';
+      } else {
+        accessHtml += '<span class="access-badge access-no">🚻 WC nie je k dispozícii</span>';
+      }
+    }
+    accessHtml += '</div></div>';
+  }
 
   // Ordinačné hodiny
   let hoursHtml = '<div class="detail-section"><h3>Ordinačné hodiny</h3>';
@@ -700,11 +758,36 @@ function renderDetail(item) {
   }
   pharmHtml += '</div>';
 
+  // MHD zastávky
+  let mhdHtml = '<div class="detail-section"><h3>🚌 Najbližšie MHD zastávky</h3>';
+  if (item.najblizsia_mhd && item.najblizsia_mhd.length > 0) {
+    item.najblizsia_mhd.forEach((s, i) => {
+      const wheelchair = s.wheelchair ? ' ♿' : '';
+      mhdHtml += `<div class="mhd-item">
+        <div class="mhd-num">${i + 1}</div>
+        <div class="mhd-info">
+          <div class="mname">${s.nazov}${wheelchair}</div>
+          <div class="mdetail">Zóna: ${s.zona}</div>
+        </div>
+        <div class="mhd-dist">${s.vzdialenost_m} m</div>
+      </div>`;
+    });
+  } else {
+    mhdHtml += '<div style="font-size:12px;color:var(--text3)">-</div>';
+  }
+  mhdHtml += '</div>';
+
+  // Poisťovne pre detail
+  const poistDetail = (item.poistovne && item.poistovne.length > 0)
+    ? item.poistovne.map(p => `<span class="tag tag-poist">${p}</span>`).join(' ')
+    : '<span style="color:var(--text3);font-size:12px">-</span>';
+
   panel.innerHTML = `
     <div class="detail-header">
       <button class="detail-close" onclick="closeDetail()" title="Zavrieť detail">✕</button>
       <h2>${item.nazov}</h2>
       <div>${shownTags} ${moreTags} ${druhTag}</div>
+      <div style="margin-top:6px"><span style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);font-weight:600">Poisťovne:</span> ${poistDetail}</div>
       <div class="meta">
         <span>📍 ${item.adresa}</span>
         <span>🏢 IČO: ${item.ico}</span>
@@ -714,7 +797,9 @@ function renderDetail(item) {
     <div class="detail-body">
       <div class="detail-left">
         ${contact}
+        ${accessHtml}
         ${hoursHtml}
+        ${mhdHtml}
         ${pharmHtml}
       </div>
       <div class="detail-right">
@@ -768,6 +853,17 @@ function initMap(item) {
     L.marker([p.lat, p.lon], { icon: pIcon }).addTo(map)
       .bindPopup(`<b>💊 ${p.nazov}</b><br>${p.adresa}<br><span style="color:#16864e;font-weight:600">${p.vzdialenost_km} km</span>`);
     bounds.push([p.lat, p.lon]);
+  });
+
+  // MHD zastávky — oranžové markery
+  (item.najblizsia_mhd || []).forEach(s => {
+    const sIcon = L.divIcon({
+      html: '<div style="background:#c27317;width:11px;height:11px;border-radius:3px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.2)"></div>',
+      iconSize: [11, 11], iconAnchor: [5, 5], className: ''
+    });
+    L.marker([s.lat, s.lon], { icon: sIcon }).addTo(map)
+      .bindPopup(`<b>🚌 ${s.nazov}</b><br><span style="color:#c27317;font-weight:600">${s.vzdialenost_m} m</span>`);
+    bounds.push([s.lat, s.lon]);
   });
 
   if (bounds.length > 1) map.fitBounds(bounds, { padding: [30, 30] });

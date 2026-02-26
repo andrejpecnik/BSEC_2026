@@ -8,7 +8,7 @@ from math import radians, cos, sin, asin, sqrt
 from flask import Flask, render_template, request, jsonify
 
 app = Flask(__name__, template_folder=os.path.dirname(__file__))
-DB_PATH = os.path.join(os.path.dirname(__file__), 'zdravdash_v3.db')
+DB_PATH = os.path.join(os.path.dirname(__file__), 'zdravdash_vsetko_asi.db')
 
 
 def get_db():
@@ -170,6 +170,11 @@ def api_search():
             (row['ico'],)
         ).fetchall()
 
+        poistovne = db.execute(
+            "SELECT DISTINCT poistovna FROM poistovne WHERE ico = ? ORDER BY poistovna",
+            (row['ico'],)
+        ).fetchall()
+
         results.append({
             'id': row['id'],
             'ico': clean_field(row['ico']) or '-',
@@ -182,6 +187,7 @@ def api_search():
             'druh_zarizeni': clean_field(row['druh_zarizeni']) or '-',
             'forma_pece': clean_field(row['forma_pece']) or '-',
             'oddelenia': [o['nazov_oddelenia'] for o in oddelenia] if oddelenia else [],
+            'poistovne': [p['poistovna'] for p in poistovne] if poistovne else [],
         })
 
     db.close()
@@ -254,6 +260,41 @@ def api_detail(zariadenie_id):
                 'lon': p['lon']
             })
 
+    # Najbližšie 2 MHD zastávky
+    nearest_mhd = []
+    if row['lat'] and row['lon']:
+        all_stops = db.execute(
+            "SELECT * FROM mhd_zastavky WHERE lat IS NOT NULL"
+        ).fetchall()
+        stop_distances = []
+        for s in all_stops:
+            d = haversine(row['lat'], row['lon'], s['lat'], s['lon'])
+            stop_distances.append((d, s))
+        stop_distances.sort(key=lambda x: x[0])
+        seen_names = set()
+        for d, s in stop_distances:
+            name = s['nazov']
+            if name in seen_names:
+                continue
+            seen_names.add(name)
+            nearest_mhd.append({
+                'nazov': name,
+                'vzdialenost_km': round(d, 2),
+                'vzdialenost_m': round(d * 1000),
+                'lat': s['lat'],
+                'lon': s['lon'],
+                'zona': clean_field(s['zona']) or '-',
+                'wheelchair': s['wheelchair_boarding']
+            })
+            if len(nearest_mhd) >= 2:
+                break
+
+    # Poisťovne
+    poistovne = db.execute(
+        "SELECT DISTINCT poistovna FROM poistovne WHERE ico = ? ORDER BY poistovna",
+        (row['ico'],)
+    ).fetchall()
+
     result = {
         'id': row['id'],
         'ico': clean_field(row['ico']) or '-',
@@ -270,10 +311,14 @@ def api_detail(zariadenie_id):
         'telefon': clean_field(row['telefon']) or '-',
         'email': clean_field(row['email']) or '-',
         'web': clean_field(row['web']) or '-',
+        'pristup': clean_field(row['pristup']) if row['pristup'] else None,
+        'wc': row['wc'],
         'oddelenia': [o['nazov_oddelenia'] for o in oddelenia] if oddelenia else [],
         'otvaracie_hodiny': hodiny_list,
         'hodiny_status': hodiny_status,
-        'najblizsia_lekaren': nearest
+        'najblizsia_lekaren': nearest,
+        'najblizsia_mhd': nearest_mhd,
+        'poistovne': [p['poistovna'] for p in poistovne] if poistovne else [],
     }
 
     db.close()
@@ -340,6 +385,10 @@ def api_search_nearby():
             "SELECT DISTINCT nazov_oddelenia FROM oddelenia WHERE ico = ?",
             (row['ico'],)
         ).fetchall()
+        poistovne = db.execute(
+            "SELECT DISTINCT poistovna FROM poistovne WHERE ico = ? ORDER BY poistovna",
+            (row['ico'],)
+        ).fetchall()
         results.append({
             'id': row['id'],
             'ico': clean_field(row['ico']) or '-',
@@ -351,6 +400,7 @@ def api_search_nearby():
             'druh_zarizeni': clean_field(row['druh_zarizeni']) or '-',
             'forma_pece': clean_field(row['forma_pece']) or '-',
             'oddelenia': [o['nazov_oddelenia'] for o in oddelenia] if oddelenia else [],
+            'poistovne': [p['poistovna'] for p in poistovne] if poistovne else [],
             'vzdialenost_km': round(dist, 2),
         })
 
