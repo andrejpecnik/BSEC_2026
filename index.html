@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZdravDash — Jihomoravský kraj</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f0f6fb;
+  --surface: #ffffff;
+  --surface2: #f5f9fd;
+  --border: #dce6f0;
+  --border-hover: #b8ccdd;
+  --text: #1a2b3d;
+  --text2: #4a6178;
+  --text3: #8298ad;
+  --accent: #1a82c4;
+  --accent-light: #e8f2fb;
+  --accent-bg: #d4ebfa;
+  --green: #16864e;
+  --green-bg: #e5f5ee;
+  --red: #c53030;
+  --red-bg: #fee5e5;
+  --orange: #c27317;
+  --orange-bg: #fef3e2;
+  --purple: #6941a8;
+  --purple-bg: #f0ebf8;
+  --pharmacy: #b83280;
+  --pharmacy-bg: #fce8f3;
+  --radius: 10px;
+  --shadow-sm: 0 1px 3px rgba(26,43,61,.06);
+  --shadow-md: 0 4px 16px rgba(26,43,61,.08);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* === HEADER === */
+.header {
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  z-index: 20;
+}
+.logo {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logo-icon {
+  width: 32px; height: 32px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: white; font-size: 16px;
+}
+.logo span { color: var(--text3); font-weight: 400; font-size: 13px; }
+
+/* === SEARCH === */
+.search-wrap {
+  flex: 1;
+  max-width: 580px;
+  position: relative;
+}
+.search-wrap input {
+  width: 100%;
+  padding: 10px 16px 10px 42px;
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color .2s, box-shadow .2s;
+}
+.search-wrap input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(26,130,196,.1);
+  background: #fff;
+}
+.search-wrap input::placeholder { color: var(--text3); }
+.search-icon {
+  position: absolute; left: 14px; top: 50%;
+  transform: translateY(-50%); color: var(--text3);
+}
+.suggestions {
+  position: absolute; top: 100%; left: 0; right: 0;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; margin-top: 4px; max-height: 220px;
+  overflow-y: auto; z-index: 100; display: none;
+  box-shadow: var(--shadow-md);
+}
+.suggestions.active { display: block; }
+.suggestions div {
+  padding: 8px 14px; cursor: pointer; font-size: 13px;
+  color: var(--text2); transition: background .12s;
+}
+.suggestions div:hover, .suggestions div.sel { background: var(--accent-light); color: var(--accent); }
+.suggestions div mark { background: none; color: var(--accent); font-weight: 600; }
+
+.stats-bar {
+  display: flex; gap: 14px; margin-left: auto; white-space: nowrap;
+}
+.stat { font-size: 12px; color: var(--text3); }
+.stat b { color: var(--accent); font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+
+/* === MAIN === */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  height: calc(100vh - 57px);
+}
+
+/* === TABLE === */
+.table-panel { overflow-y: auto; background: var(--surface); }
+.table-panel table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table-panel thead th {
+  position: sticky; top: 0; background: var(--surface2);
+  padding: 10px 14px; text-align: left; font-weight: 600;
+  font-size: 10px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--text3); border-bottom: 1.5px solid var(--border); z-index: 10;
+}
+.table-panel tbody tr {
+  cursor: pointer; transition: background .12s;
+  border-bottom: 1px solid var(--border);
+}
+.table-panel tbody tr:hover { background: var(--accent-light); }
+.table-panel tbody tr.active {
+  background: var(--accent-bg);
+  border-left: 3px solid var(--accent);
+}
+.table-panel tbody td { padding: 8px 14px; color: var(--text2); vertical-align: top; }
+.table-panel tbody td:first-child { color: var(--text); font-weight: 500; }
+
+.tag {
+  display: inline-block; padding: 2px 8px; border-radius: 5px;
+  font-size: 10px; font-weight: 500; margin: 1px 2px;
+}
+.tag-obor { background: var(--accent-light); color: var(--accent); }
+.tag-druh { background: var(--purple-bg); color: var(--purple); }
+
+/* === PAGINATION === */
+.pagination {
+  padding: 10px 14px; display: flex; align-items: center;
+  justify-content: center; gap: 8px;
+  border-top: 1px solid var(--border); background: var(--surface);
+  position: sticky; bottom: 0;
+}
+.pagination button {
+  padding: 5px 12px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text2); border-radius: 6px;
+  cursor: pointer; font-family: inherit; font-size: 12px; transition: all .12s;
+}
+.pagination button:hover:not(:disabled) { background: var(--accent-light); color: var(--accent); border-color: var(--accent); }
+.pagination button:disabled { opacity: .35; cursor: default; }
+.page-info { font-size: 12px; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+
+/* === DETAIL === */
+.detail-panel {
+  border-left: 1px solid var(--border);
+  background: var(--surface2); overflow-y: auto;
+}
+.detail-empty {
+  display: flex; align-items: center; justify-content: center;
+  height: 100%; color: var(--text3); font-size: 13px; text-align: center; padding: 32px;
+}
+.detail-header {
+  padding: 18px 20px; border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.detail-header h2 { font-size: 16px; font-weight: 700; line-height: 1.3; margin-bottom: 6px; color: var(--text); }
+.detail-header .meta {
+  font-size: 11px; color: var(--text3);
+  display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px;
+}
+.detail-header .meta span { display: flex; align-items: center; gap: 4px; }
+.detail-section {
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  margin-bottom: 1px;
+}
+.detail-section h3 {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--text3); margin-bottom: 10px; font-weight: 600;
+}
+
+/* Hours */
+.hours-dept { margin-bottom: 10px; }
+.hours-dept .dept-name { font-size: 12px; font-weight: 600; color: var(--purple); margin-bottom: 5px; }
+.hours-grid {
+  display: grid; grid-template-columns: 36px 1fr; gap: 3px 10px; font-size: 12px;
+}
+.hours-grid .day { color: var(--text3); font-weight: 600; }
+.hours-grid .time { color: var(--text2); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+.hours-grid .time.closed { color: var(--red); }
+.hours-grid .time.open { color: var(--green); font-weight: 500; }
+.hours-grid .time.na { color: var(--text3); font-style: italic; }
+
+.hours-unavailable {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  background: var(--orange-bg);
+  border-radius: 6px;
+  color: var(--orange);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Pharmacy */
+.pharm-item { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; }
+.pharm-item + .pharm-item { border-top: 1px solid var(--border); }
+.pharm-num {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--pharmacy-bg); color: var(--pharmacy);
+  font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.pharm-info { flex: 1; }
+.pharm-info .pname { font-size: 12px; font-weight: 500; color: var(--text); }
+.pharm-info .paddr { font-size: 11px; color: var(--text3); margin-top: 1px; }
+.pharm-dist {
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  color: var(--green); font-weight: 600; white-space: nowrap;
+}
+
+/* Contact */
+.contact-grid {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 12px;
+}
+.contact-grid .label { color: var(--text3); font-weight: 500; }
+.contact-grid .value { color: var(--text2); }
+.contact-grid .value.dash { color: var(--text3); }
+.contact-grid a { color: var(--accent); text-decoration: none; }
+.contact-grid a:hover { text-decoration: underline; }
+
+#map {
+  height: 210px; border-radius: 8px; margin: 0 20px 4px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.loading {
+  text-align: center; padding: 60px; color: var(--text3); font-size: 13px;
+}
+.spinner {
+  width: 26px; height: 26px; border: 3px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin .6s linear infinite; margin: 0 auto 12px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+@media (max-width: 900px) {
+  .main { grid-template-columns: 1fr; }
+  .detail-panel { border-left: none; border-top: 1px solid var(--border); max-height: 50vh; }
+  .header { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">⚕</div>
+    ZdravDash <span>Jihomoravský kraj</span>
+  </div>
+  <div class="search-wrap">
+    <svg class="search-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input type="text" id="searchInput" placeholder='Hľadaj obor, oddelenie, názov, obec… napr. "kardiológia"' autocomplete="off">
+    <div class="suggestions" id="suggestions"></div>
+  </div>
+  <div class="stats-bar">
+    <div class="stat">Výsledkov: <b id="countResults">—</b></div>
+    <div class="stat">Celkom: <b id="countTotal">—</b></div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="table-panel" id="tablePanel">
+    <table>
+      <thead>
+        <tr>
+          <th>Názov</th>
+          <th>Obor / Oddelenie</th>
+          <th>Adresa</th>
+          <th>IČO</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <tr><td colspan="4"><div class="loading"><div class="spinner"></div>Načítavam…</div></td></tr>
+      </tbody>
+    </table>
+    <div class="pagination" id="pagination"></div>
+  </div>
+  <div class="detail-panel" id="detailPanel">
+    <div class="detail-empty">
+      <div>
+        <div style="font-size:36px;margin-bottom:10px">🔍</div>
+        <p>Zadaj hľadaný výraz a klikni na riadok<br>pre zobrazenie detailu</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const PAGE_SIZE = 50;
+let currentQuery = '';
+let currentPage = 0;
+let totalResults = 0;
+let currentResults = [];
+let selectedId = null;
+let suggestionsData = [];
+let map = null;
+let debounceTimer = null;
+
+// ==================== INIT ====================
+
+async function init() {
+  const stats = await fetchJson('/api/stats');
+  if (stats) document.getElementById('countTotal').textContent = (stats.zariadenia_bez_lekarni || 0).toLocaleString();
+  suggestionsData = await fetchJson('/api/suggestions') || [];
+  await doSearch('');
+
+  const input = document.getElementById('searchInput');
+  const suggBox = document.getElementById('suggestions');
+  let suggIdx = -1;
+
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = input.value.trim();
+    if (q.length >= 1) showSuggestions(q, suggBox);
+    else suggBox.classList.remove('active');
+    debounceTimer = setTimeout(() => { currentPage = 0; doSearch(q); }, 250);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    const items = suggBox.querySelectorAll('div');
+    if (e.key === 'ArrowDown') { e.preventDefault(); suggIdx = Math.min(suggIdx + 1, items.length - 1); updateSel(items, suggIdx); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); suggIdx = Math.max(suggIdx - 1, -1); updateSel(items, suggIdx); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (suggIdx >= 0 && items[suggIdx]) input.value = items[suggIdx].dataset.val;
+      suggBox.classList.remove('active');
+      suggIdx = -1;
+      currentPage = 0;
+      doSearch(input.value.trim());
+    }
+    else if (e.key === 'Escape') { suggBox.classList.remove('active'); suggIdx = -1; }
+  });
+
+  input.addEventListener('blur', () => setTimeout(() => suggBox.classList.remove('active'), 150));
+}
+
+// ==================== API ====================
+
+async function fetchJson(url) {
+  try { return await (await fetch(url)).json(); }
+  catch (e) { console.error('API error:', e); return null; }
+}
+
+async function doSearch(query) {
+  currentQuery = query;
+  const data = await fetchJson(`/api/search?q=${encodeURIComponent(query)}&page=${currentPage}&limit=${PAGE_SIZE}`);
+  if (!data) return;
+  totalResults = data.total;
+  currentResults = data.results;
+  document.getElementById('countResults').textContent = totalResults.toLocaleString();
+  renderTable();
+  if (!selectedId) showEmptyDetail(totalResults === 0);
+}
+
+async function loadDetail(id) {
+  const panel = document.getElementById('detailPanel');
+  panel.innerHTML = '<div class="loading" style="padding-top:100px"><div class="spinner"></div>Načítavam detail…</div>';
+  const data = await fetchJson(`/api/detail/${id}`);
+  if (!data || data.error) { panel.innerHTML = '<div class="detail-empty"><div>Chyba pri načítaní</div></div>'; return; }
+  renderDetail(data);
+}
+
+// ==================== RENDER TABLE ====================
+
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  if (currentResults.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4"><div class="loading" style="padding:60px"><div style="font-size:36px;margin-bottom:10px">🔎</div>Žiadne výsledky. Skús iný výraz.</div></td></tr>`;
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+  tbody.innerHTML = currentResults.map(item => {
+    const odd = (item.oddelenia || []).slice(0, 3).map(o => `<span class="tag tag-obor">${o}</span>`).join('');
+    const druh = item.druh_zarizeni && item.druh_zarizeni !== '-' ? `<span class="tag tag-druh">${item.druh_zarizeni}</span>` : '';
+    return `<tr data-id="${item.id}" class="${item.id === selectedId ? 'active' : ''}" onclick="selectRow(${item.id})">
+      <td>${item.nazov}</td>
+      <td>${odd}${druh}</td>
+      <td>${item.adresa}</td>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text3)">${item.ico}</td>
+    </tr>`;
+  }).join('');
+
+  const totalPages = Math.ceil(totalResults / PAGE_SIZE);
+  const pag = document.getElementById('pagination');
+  if (totalPages <= 1) { pag.innerHTML = ''; return; }
+  pag.innerHTML = `
+    <button onclick="goPage(0)" ${currentPage===0?'disabled':''}>⟨⟨</button>
+    <button onclick="goPage(${currentPage-1})" ${currentPage===0?'disabled':''}>⟨</button>
+    <span class="page-info">${currentPage+1} / ${totalPages}</span>
+    <button onclick="goPage(${currentPage+1})" ${currentPage>=totalPages-1?'disabled':''}>⟩</button>
+    <button onclick="goPage(${totalPages-1})" ${currentPage>=totalPages-1?'disabled':''}>⟩⟩</button>`;
+}
+
+// ==================== RENDER DETAIL ====================
+
+function renderDetail(item) {
+  const panel = document.getElementById('detailPanel');
+  const days = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
+
+  const tags = (item.oddelenia || []).map(o => `<span class="tag tag-obor">${o}</span>`).join(' ');
+  const druhTag = item.druh_zarizeni && item.druh_zarizeni !== '-' ? `<span class="tag tag-druh">${item.druh_zarizeni}</span>` : '';
+
+  // Kontakt — vždy zobrazíme, s pomlčkami kde chýba
+  const telVal = item.telefon !== '-' ? item.telefon : '-';
+  const emailVal = item.email !== '-'
+    ? `<a href="mailto:${item.email}">${item.email}</a>`
+    : '<span class="dash">-</span>';
+  const webVal = item.web !== '-'
+    ? `<a href="${item.web.startsWith('http') ? item.web : 'http://' + item.web}" target="_blank">${item.web}</a>`
+    : '<span class="dash">-</span>';
+
+  const contact = `<div class="detail-section"><h3>Kontakt</h3>
+    <div class="contact-grid">
+      <span class="label">Telefón:</span><span class="value ${telVal==='-'?'dash':''}">${telVal}</span>
+      <span class="label">Email:</span><span class="value">${emailVal}</span>
+      <span class="label">Web:</span><span class="value">${webVal}</span>
+    </div></div>`;
+
+  // Ordinačné hodiny
+  let hoursHtml = '<div class="detail-section"><h3>Ordinačné hodiny</h3>';
+
+  if (item.hodiny_status === 'nedostupne' || item.hodiny_status === 'ziadne') {
+    hoursHtml += `<div class="hours-unavailable">
+      <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+      Otváracie hodiny: NEDOSTUPNÉ
+    </div>`;
+  } else if (item.otvaracie_hodiny && item.otvaracie_hodiny.length > 0) {
+    item.otvaracie_hodiny.forEach(dept => {
+      hoursHtml += '<div class="hours-dept">';
+      if (item.otvaracie_hodiny.length > 1) hoursHtml += `<div class="dept-name">${dept.oddelenie}</div>`;
+      hoursHtml += '<div class="hours-grid">';
+      days.forEach(d => {
+        const time = dept.hodiny ? dept.hodiny[d] : null;
+        let cls = 'na';
+        let display = 'NEDOSTUPNÉ';
+        if (time === null || time === undefined) {
+          cls = 'na'; display = 'NEDOSTUPNÉ';
+        } else if (time === 'zavřeno' || time === 'zavreno') {
+          cls = 'closed'; display = 'zavřeno';
+        } else {
+          cls = 'open'; display = time;
+        }
+        hoursHtml += `<div class="day">${d}</div><div class="time ${cls}">${display}</div>`;
+      });
+      hoursHtml += '</div></div>';
+    });
+  }
+  hoursHtml += '</div>';
+
+  // Lekárne
+  let pharmHtml = '<div class="detail-section"><h3>💊 Najbližšie lekárne</h3>';
+  if (item.najblizsia_lekaren && item.najblizsia_lekaren.length > 0) {
+    item.najblizsia_lekaren.forEach((p, i) => {
+      pharmHtml += `<div class="pharm-item">
+        <div class="pharm-num">${i + 1}</div>
+        <div class="pharm-info">
+          <div class="pname">${p.nazov}</div>
+          <div class="paddr">${p.adresa}</div>
+        </div>
+        <div class="pharm-dist">${p.vzdialenost_km} km</div>
+      </div>`;
+    });
+  } else {
+    pharmHtml += '<div style="font-size:12px;color:var(--text3)">-</div>';
+  }
+  pharmHtml += '</div>';
+
+  panel.innerHTML = `
+    <div class="detail-header">
+      <h2>${item.nazov}</h2>
+      <div>${tags} ${druhTag}</div>
+      <div class="meta">
+        <span>📍 ${item.adresa}</span>
+        <span>🏢 IČO: ${item.ico}</span>
+        <span>🩺 ${item.forma_pece}</span>
+      </div>
+    </div>
+    ${contact}
+    <div style="padding-top:14px;background:var(--surface);margin-bottom:1px">
+      <div id="map"></div>
+    </div>
+    ${hoursHtml}
+    ${pharmHtml}`;
+
+  setTimeout(() => initMap(item), 50);
+}
+
+function showEmptyDetail(noResults) {
+  document.getElementById('detailPanel').innerHTML = `
+    <div class="detail-empty"><div>
+      <div style="font-size:36px;margin-bottom:10px">${noResults ? '😕' : '🔍'}</div>
+      <p>${noResults ? 'Žiadne výsledky pre tento výraz' : 'Klikni na riadok pre zobrazenie detailu'}</p>
+    </div></div>`;
+}
+
+// ==================== MAP ====================
+
+function initMap(item) {
+  if (map) { map.remove(); map = null; }
+  const el = document.getElementById('map');
+  if (!el || !item.lat || !item.lon) return;
+
+  map = L.map('map', { zoomControl: false }).setView([item.lat, item.lon], 15);
+  L.control.zoom({ position: 'topright' }).addTo(map);
+
+  // Svetlá mapa — CartoDB Positron
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '©<a href="https://www.openstreetmap.org/copyright">OSM</a> ©<a href="https://carto.com/">CARTO</a>',
+    maxZoom: 19,
+    subdomains: 'abcd'
+  }).addTo(map);
+
+  // Zariadenie — modrý marker
+  const facIcon = L.divIcon({
+    html: '<div style="background:#1a82c4;width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.25)"></div>',
+    iconSize: [14, 14], iconAnchor: [7, 7], className: ''
+  });
+  L.marker([item.lat, item.lon], { icon: facIcon }).addTo(map)
+    .bindPopup(`<b>${item.nazov}</b><br>${item.adresa}`);
+
+  // Lekárne — ružové markery
+  const bounds = [[item.lat, item.lon]];
+  (item.najblizsia_lekaren || []).forEach(p => {
+    const pIcon = L.divIcon({
+      html: '<div style="background:#b83280;width:11px;height:11px;border-radius:50%;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.2)"></div>',
+      iconSize: [11, 11], iconAnchor: [5, 5], className: ''
+    });
+    L.marker([p.lat, p.lon], { icon: pIcon }).addTo(map)
+      .bindPopup(`<b>💊 ${p.nazov}</b><br>${p.adresa}<br><span style="color:#16864e;font-weight:600">${p.vzdialenost_km} km</span>`);
+    bounds.push([p.lat, p.lon]);
+  });
+
+  if (bounds.length > 1) map.fitBounds(bounds, { padding: [30, 30] });
+}
+
+// ==================== INTERACTIONS ====================
+
+function selectRow(id) {
+  selectedId = id;
+  renderTable();
+  loadDetail(id);
+}
+
+function goPage(p) {
+  const totalPages = Math.ceil(totalResults / PAGE_SIZE);
+  currentPage = Math.max(0, Math.min(p, totalPages - 1));
+  doSearch(currentQuery);
+  document.getElementById('tablePanel').scrollTop = 0;
+}
+
+function showSuggestions(q, box) {
+  const norm = q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const matches = suggestionsData.filter(s =>
+    s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(norm)
+  ).slice(0, 8);
+  if (!matches.length) { box.classList.remove('active'); return; }
+  const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  box.innerHTML = matches.map(m =>
+    `<div data-val="${m}">${m.replace(re, '<mark>$1</mark>')}</div>`
+  ).join('');
+  box.classList.add('active');
+  box.querySelectorAll('div').forEach(d => {
+    d.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      document.getElementById('searchInput').value = d.dataset.val;
+      box.classList.remove('active');
+      currentPage = 0;
+      doSearch(d.dataset.val);
+    });
+  });
+}
+
+function updateSel(items, idx) {
+  items.forEach((el, i) => el.classList.toggle('sel', i === idx));
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
