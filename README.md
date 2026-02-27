@@ -100,7 +100,7 @@ AI functionality requires Google Vertex AI credentials.
 
 ---
 
-##Running the Application
+## Running the Application
 
 1. Clone the repository:
 
@@ -131,7 +131,7 @@ http://localhost:5000
 
 ---
 
-## 🔌 API Endpoints (Overview)
+## API Endpoints (Overview)
 
 | Endpoint             | Description         |
 | -------------------- | ------------------- |
