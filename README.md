@@ -1,8 +1,8 @@
 # MedicApp — BSEC Brno 2026 Project
 
-This project won 3rd place award at BSEC Brno 2026** in the **"Analyse" category**.
+This project won 3rd place award at BSEC Brno 2026 in the **"Analyse" category**.
 
-The application was developed as part of the BSEC (Brno Student Engineering Competition).
+The application was developed as part of the BSEC (Brno Student Engineering Competition) organised by BEST (Board of European Students of Technology) Brno.
 
 ---
 
